@@ -12,7 +12,8 @@ import {
   Clock,
   Sparkles,
   Paperclip,
-  CheckCircle2
+  CheckCircle2,
+  Bot
 } from 'lucide-react'
 import { useAuth } from '../../context/AuthContext'
 import incidentService from '../../services/incidentService'
@@ -22,6 +23,7 @@ import attachmentService from '../../services/attachmentService'
 import charterService from '../../services/charterService'
 import interventionService from '../../services/interventionService'
 import userService from '../../services/userService'
+import aiAnalysisService from '../../services/aiAnalysisService'
 
 import StatusBadge from '../../components/common/StatusBadge'
 import Button from '../../components/common/Button'
@@ -29,6 +31,7 @@ import Modal from '../../components/common/Modal'
 import Loading from '../../components/common/Loading'
 import Input from '../../components/common/Input'
 import { formatDateTime, formatDate } from '../../utils/formatters'
+import AiAnalysisCard from '../ai-analysis/components/AiAnalysisCard'
 
 const getAvailableTransitions = (currentStatus, role) => {
   if (role === 'AGENT') {
@@ -96,6 +99,11 @@ export const IncidentDetailsPage = () => {
   const [charters, setCharters] = useState([])
   const [interventions, setInterventions] = useState([])
   const [attachments, setAttachments] = useState([])
+  const [analyses, setAnalyses] = useState([])
+  const [selectedAnalysisId, setSelectedAnalysisId] = useState(null)
+  const [analyzing, setAnalyzing] = useState(false)
+  const [aiError, setAiError] = useState('')
+  const [applyingAiPriority, setApplyingAiPriority] = useState(false)
 
   const [categories, setCategories] = useState([])
   const [services, setServices] = useState([])
@@ -138,15 +146,21 @@ export const IncidentDetailsPage = () => {
       setIncident(data)
       setAttachments(data.attachments || [])
 
-      const [histRes, chartersRes, intervRes] = await Promise.all([
+      const [histRes, chartersRes, intervRes, analysesRes] = await Promise.all([
         incidentService.getIncidentHistory(id).catch(() => []),
         charterService.getChartersByIncident(id).catch(() => []),
-        interventionService.getInterventionsByIncident(id).catch(() => [])
+        interventionService.getInterventionsByIncident(id).catch(() => []),
+        aiAnalysisService.getAnalysesByIncident(id).catch(() => [])
       ])
 
       setHistory(histRes || [])
       setCharters(chartersRes || [])
       setInterventions(intervRes || [])
+      const fetchedAnalyses = analysesRes || []
+      setAnalyses(fetchedAnalyses)
+      if (fetchedAnalyses.length > 0) {
+        setSelectedAnalysisId((prev) => (prev ? prev : fetchedAnalyses[0].id))
+      }
     } catch (err) {
       setError(err.message || "Impossible de charger les informations de l'incident")
     } finally {
@@ -322,6 +336,50 @@ export const IncidentDetailsPage = () => {
     }
   }
 
+  const handleRunAiAnalysis = async () => {
+    setAnalyzing(true)
+    setAiError('')
+    setError(null)
+
+    try {
+      const res = await aiAnalysisService.analyzeIncident(id)
+      setActionSuccess("L'analyse IA a été réalisée avec succès par Gemini.")
+      if (res && res.id) {
+        setSelectedAnalysisId(res.id)
+      }
+      await fetchIncidentDetails()
+      setTimeout(() => setActionSuccess(''), 4000)
+    } catch (err) {
+      setAiError(err.message || "Erreur lors de l'analyse IA de l'incident.")
+    } finally {
+      setAnalyzing(false)
+    }
+  }
+
+  const handleApplyAiPriority = async (suggestedPriority) => {
+    if (!suggestedPriority || !incident) return
+    setApplyingAiPriority(true)
+    setError(null)
+
+    try {
+      await incidentService.updateIncident(id, {
+        title: incident.title,
+        description: incident.description,
+        location: incident.location,
+        priority: suggestedPriority,
+        categoryId: incident.categoryId,
+        serviceId: incident.serviceId
+      })
+      setActionSuccess(`La priorité de l'incident a été mise à jour à ${suggestedPriority} selon la recommandation de l'IA.`)
+      await fetchIncidentDetails()
+      setTimeout(() => setActionSuccess(''), 4000)
+    } catch (err) {
+      setError(err.message || "Erreur lors de l'application de la priorité recommandée.")
+    } finally {
+      setApplyingAiPriority(false)
+    }
+  }
+
   if (loading) {
     return <Loading message="Chargement des détails de l'incident..." />
   }
@@ -342,6 +400,8 @@ export const IncidentDetailsPage = () => {
   }
 
   const availableTransitions = getAvailableTransitions(incident.status, user?.role)
+  const selectedAnalysis =
+    analyses.find((a) => a.id === selectedAnalysisId) || analyses[0] || null
 
   return (
     <div>
@@ -418,10 +478,16 @@ export const IncidentDetailsPage = () => {
 
         <div className="incident-detail-actions">
           {(isAdmin || isManager) && (
-            <Link to="/ai-analysis" className="btn btn-outline btn-sm">
-              <Sparkles size={14} />
-              <span>Analyse IA</span>
-            </Link>
+            <Button
+              variant="outline"
+              size="sm"
+              icon={Sparkles}
+              loading={analyzing}
+              disabled={analyzing || incident.status === 'CLOTURE' || incident.status === 'REJETE'}
+              onClick={handleRunAiAnalysis}
+            >
+              {analyses.length > 0 ? "Ré-analyser avec l'IA" : "Analyser avec l'IA"}
+            </Button>
           )}
 
           {canEdit && (
@@ -462,6 +528,88 @@ export const IncidentDetailsPage = () => {
               </div>
             )}
           </div>
+
+          {aiError && (
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '10px',
+                padding: '12px 16px',
+                backgroundColor: 'var(--color-danger-bg)',
+                border: '1px solid var(--color-danger-border)',
+                borderRadius: 'var(--radius-md)',
+                color: 'var(--color-danger)',
+                fontSize: 'var(--font-size-sm)'
+              }}
+            >
+              <AlertTriangle size={18} />
+              <span>{aiError}</span>
+            </div>
+          )}
+
+          {analyses.length > 0 ? (
+            <div>
+              {analyses.length > 1 && (
+                <div className="ai-history-selector">
+                  <span style={{ fontSize: 'var(--font-size-xs)', fontWeight: 600, color: 'var(--color-text-muted)', marginRight: '6px' }}>
+                    Historique des diagnostics :
+                  </span>
+                  {analyses.map((item, idx) => (
+                    <button
+                      key={item.id}
+                      type="button"
+                      className={`ai-history-pill ${selectedAnalysis?.id === item.id ? 'active' : ''}`}
+                      onClick={() => setSelectedAnalysisId(item.id)}
+                    >
+                      <Sparkles size={12} />
+                      <span>{idx === 0 ? 'Dernier diagnostic' : `Version #${item.id}`} ({formatDate(item.createdAt)})</span>
+                    </button>
+                  ))}
+                </div>
+              )}
+
+              <AiAnalysisCard
+                analysis={selectedAnalysis}
+                currentIncidentPriority={incident.priority}
+                canApplyPriority={isAdmin || isManager}
+                onApplyPriority={handleApplyAiPriority}
+                applyingPriority={applyingAiPriority}
+              />
+            </div>
+          ) : (
+            <div className="card" style={{ borderLeft: '4px solid var(--color-blue-500)' }}>
+              <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '20px', flexWrap: 'wrap' }}>
+                <div style={{ maxWidth: '580px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
+                    <Sparkles size={18} style={{ color: 'var(--color-blue-600)' }} />
+                    <h3 style={{ fontSize: 'var(--font-size-md)', fontWeight: 600, color: 'var(--color-primary)' }}>
+                      Diagnostic intelligent par Google Gemini
+                    </h3>
+                  </div>
+                  <p style={{ fontSize: 'var(--font-size-sm)', color: 'var(--color-text-muted)', lineHeight: 1.6 }}>
+                    Obtenez une analyse instantanée de l'incident : synthèse du problème, identification des causes probables, préconisation de priorité et recommandations concrètes de résolution.
+                  </p>
+                </div>
+                {(isAdmin || isManager) ? (
+                  <Button
+                    variant="primary"
+                    size="sm"
+                    icon={Sparkles}
+                    loading={analyzing}
+                    disabled={analyzing || incident.status === 'CLOTURE' || incident.status === 'REJETE'}
+                    onClick={handleRunAiAnalysis}
+                  >
+                    Analyser avec l'IA
+                  </Button>
+                ) : (
+                  <span style={{ fontSize: 'var(--font-size-xs)', color: 'var(--color-text-muted)', fontStyle: 'italic' }}>
+                    Aucune analyse IA effectuée pour le moment
+                  </span>
+                )}
+              </div>
+            </div>
+          )}
 
           <div className="card">
             <div className="card-header">

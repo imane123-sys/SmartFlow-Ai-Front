@@ -2,6 +2,7 @@
 @import "./components.css";
 @import "./dashboard.css";
 @import "./incidents.css";
+@import "./ai-analysis.css";
 
 *,
 *::before,
