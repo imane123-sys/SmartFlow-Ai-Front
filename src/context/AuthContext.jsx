@@ -3,18 +3,8 @@ import authService from '../services/authService'
 
 const AuthContext = createContext(null)
 
-export const getDefaultPathForRole = (role) => {
-  switch (role) {
-    case 'ADMIN':
-    case 'MANAGER':
-      return '/dashboard'
-    case 'AGENT':
-      return '/interventions'
-    case 'EMPLOYEE':
-      return '/incidents'
-    default:
-      return '/dashboard'
-  }
+export const getDefaultPathForRole = () => {
+  return '/dashboard'
 }
 
 export const AuthProvider = ({ children }) => {
@@ -101,7 +91,7 @@ export const AuthProvider = ({ children }) => {
     logout,
     hasRole,
     hasAnyRole,
-    getDefaultPath: () => getDefaultPathForRole(user?.role)
+    getDefaultPath: () => getDefaultPathForRole()
   }
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>

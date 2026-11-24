@@ -1,28 +1,25 @@
 import React from 'react'
-import EmptyState from '../../components/common/EmptyState'
-import { LayoutDashboard } from 'lucide-react'
+import { useAuth } from '../../context/AuthContext'
+import AdminManagerDashboard from './components/AdminManagerDashboard'
+import AgentDashboard from './components/AgentDashboard'
+import EmployeeDashboard from './components/EmployeeDashboard'
 
 export const DashboardPage = () => {
-  return (
-    <div>
-      <div className="page-header">
-        <div>
-          <h1 className="page-title">Tableau de bord</h1>
-          <p className="page-subtitle">
-            Indicateurs clés, métriques et vue globale de l’activité SmartFlow AI
-          </p>
-        </div>
-      </div>
+  const { role, isAdmin, isManager, isAgent, isEmployee } = useAuth()
 
-      <div className="card">
-        <EmptyState
-          icon={LayoutDashboard}
-          title="Module Tableau de bord initialisé"
-          description="Les graphiques de répartition et indicateurs clés seront reliés lors de la prochaine étape."
-        />
-      </div>
-    </div>
-  )
+  if (isAdmin || isManager) {
+    return <AdminManagerDashboard />
+  }
+
+  if (isAgent) {
+    return <AgentDashboard />
+  }
+
+  if (isEmployee) {
+    return <EmployeeDashboard />
+  }
+
+  return <EmployeeDashboard />
 }
 
 export default DashboardPage

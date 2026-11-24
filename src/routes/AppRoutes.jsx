@@ -74,14 +74,7 @@ export const AppRoutes = () => {
         }
       >
         <Route path="/" element={<Navigate to={getDefaultPath()} replace />} />
-        <Route
-          path="/dashboard"
-          element={
-            <ProtectedRoute allowedRoles={['MANAGER', 'ADMIN']}>
-              <DashboardPage />
-            </ProtectedRoute>
-          }
-        />
+        <Route path="/dashboard" element={<DashboardPage />} />
         <Route path="/incidents" element={<IncidentsPage />} />
         <Route path="/incidents/create" element={<CreateIncidentPage />} />
         <Route path="/incidents/:id" element={<IncidentDetailsPage />} />
