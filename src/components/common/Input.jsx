@@ -11,6 +11,7 @@ export const Input = ({
   helperText,
   required = false,
   icon: Icon,
+  rightAction,
   disabled = false,
   className = '',
   ...props
@@ -37,9 +38,10 @@ export const Input = ({
           onChange={onChange}
           placeholder={placeholder}
           disabled={disabled}
-          className={`input-field ${Icon ? 'has-icon-left' : ''} ${error ? 'input-error' : ''}`}
+          className={`input-field ${Icon ? 'has-icon-left' : ''} ${rightAction ? 'has-action-right' : ''} ${error ? 'input-error' : ''}`}
           {...props}
         />
+        {rightAction && <div className="input-action-right">{rightAction}</div>}
       </div>
       {error && <span className="input-error-text">{error}</span>}
       {!error && helperText && <span className="input-helper-text">{helperText}</span>}

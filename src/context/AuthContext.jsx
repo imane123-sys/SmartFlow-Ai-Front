@@ -3,6 +3,20 @@ import authService from '../services/authService'
 
 const AuthContext = createContext(null)
 
+export const getDefaultPathForRole = (role) => {
+  switch (role) {
+    case 'ADMIN':
+    case 'MANAGER':
+      return '/dashboard'
+    case 'AGENT':
+      return '/interventions'
+    case 'EMPLOYEE':
+      return '/incidents'
+    default:
+      return '/dashboard'
+  }
+}
+
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(() => {
     const savedUser = localStorage.getItem('user')
@@ -26,8 +40,10 @@ export const AuthProvider = ({ children }) => {
           const currentUser = await authService.getCurrentUser()
           setUser(currentUser)
           localStorage.setItem('user', JSON.stringify(currentUser))
-        } catch {
-          logout()
+        } catch (error) {
+          if (error.status === 401) {
+            logout()
+          }
         }
       }
       setLoading(false)
@@ -65,15 +81,27 @@ export const AuthProvider = ({ children }) => {
     return roles.includes(user.role)
   }
 
+  const role = user?.role || null
+  const isAdmin = role === 'ADMIN'
+  const isManager = role === 'MANAGER'
+  const isAgent = role === 'AGENT'
+  const isEmployee = role === 'EMPLOYEE'
+
   const value = {
     user,
     token,
+    role,
+    isAdmin,
+    isManager,
+    isAgent,
+    isEmployee,
     isAuthenticated: Boolean(token && user),
     loading,
     login,
     logout,
     hasRole,
-    hasAnyRole
+    hasAnyRole,
+    getDefaultPath: () => getDefaultPathForRole(user?.role)
   }
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>

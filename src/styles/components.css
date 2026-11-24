@@ -133,8 +133,21 @@
   pointer-events: none;
 }
 
+.input-action-right {
+  position: absolute;
+  right: 8px;
+  color: var(--color-text-muted);
+  display: flex;
+  align-items: center;
+  cursor: pointer;
+}
+
 .input-field.has-icon-left {
   padding-left: 36px;
+}
+
+.input-field.has-action-right {
+  padding-right: 36px;
 }
 
 .input-error-text {

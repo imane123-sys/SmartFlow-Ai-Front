@@ -25,19 +25,34 @@ api.interceptors.response.use(
     return response.data
   },
   (error) => {
-    if (error.response && error.response.status === 401) {
+    const status = error.response?.status
+    const isLoginRequest = error.config?.url?.includes('/auth/login')
+
+    if (status === 401 && !isLoginRequest) {
       localStorage.removeItem('token')
       localStorage.removeItem('user')
       if (window.location.pathname !== '/login') {
         window.location.href = '/login'
       }
     }
-    const message =
-      error.response?.data?.message ||
-      error.response?.data?.error ||
-      error.message ||
-      'Une erreur est survenue'
-    return Promise.reject(new Error(message))
+
+    let message = 'Une erreur inattendue est survenue'
+
+    if (!error.response) {
+      message = 'Impossible de communiquer avec le serveur. Vérifiez que le backend est actif.'
+    } else if (status === 401) {
+      message = error.response.data?.message || 'Email ou mot de passe incorrect'
+    } else if (status === 403) {
+      message = error.response.data?.message || 'Vous n’avez pas les droits nécessaires pour accéder à cette ressource'
+    } else if (error.response.data?.message) {
+      message = error.response.data.message
+    } else if (error.response.data?.error) {
+      message = error.response.data.error
+    }
+
+    const customError = new Error(message)
+    customError.status = status
+    return Promise.reject(customError)
   }
 )
 
