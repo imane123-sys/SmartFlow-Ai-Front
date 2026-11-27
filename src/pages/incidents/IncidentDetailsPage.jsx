@@ -13,7 +13,8 @@ import {
   Sparkles,
   Paperclip,
   CheckCircle2,
-  Bot
+  Bot,
+  FileText
 } from 'lucide-react'
 import { useAuth } from '../../context/AuthContext'
 import incidentService from '../../services/incidentService'
@@ -29,8 +30,10 @@ import StatusBadge from '../../components/common/StatusBadge'
 import Button from '../../components/common/Button'
 import Modal from '../../components/common/Modal'
 import Loading from '../../components/common/Loading'
+import EmptyState from '../../components/common/EmptyState'
 import Input from '../../components/common/Input'
 import { formatDateTime, formatDate } from '../../utils/formatters'
+import { getCharterId } from '../charters/charterHelpers'
 import AiAnalysisCard from '../ai-analysis/components/AiAnalysisCard'
 
 const getAvailableTransitions = (currentStatus, role) => {
@@ -102,6 +105,7 @@ export const IncidentDetailsPage = () => {
   const [analyses, setAnalyses] = useState([])
   const [selectedAnalysisId, setSelectedAnalysisId] = useState(null)
   const [analyzing, setAnalyzing] = useState(false)
+  const [charterGenerating, setCharterGenerating] = useState(false)
   const [aiError, setAiError] = useState('')
   const [applyingAiPriority, setApplyingAiPriority] = useState(false)
 
@@ -353,6 +357,26 @@ export const IncidentDetailsPage = () => {
       setAiError(err.message || "Erreur lors de l'analyse IA de l'incident.")
     } finally {
       setAnalyzing(false)
+    }
+  }
+
+  const handleGenerateCharter = async () => {
+    setCharterGenerating(true)
+    setError(null)
+    setActionSuccess('')
+
+    try {
+      const created = await charterService.generateCharterDraft(id)
+      const createdId = getCharterId(created)
+      if (createdId === null) {
+        throw new Error('Le backend n’a pas renvoyé d’identifiant de charte.')
+      }
+      setActionSuccess('Brouillon de charte généré à partir de la dernière analyse IA.')
+      navigate(`/charters/${createdId}`)
+    } catch (err) {
+      setError(err.message || "Erreur lors de la génération de la charte d'intervention")
+    } finally {
+      setCharterGenerating(false)
     }
   }
 
@@ -782,26 +806,51 @@ export const IncidentDetailsPage = () => {
             </div>
           </div>
 
-          {charters.length > 0 && (
+          {(charters.length > 0 || isAdmin || isManager) && (
             <div className="card">
               <div className="card-header">
-                <h3 className="card-title">Charte d'intervention</h3>
-              </div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                {charters.map((c) => (
-                  <div key={c.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 0', borderBottom: '1px solid var(--color-border-light)' }}>
-                    <div>
-                      <div style={{ fontWeight: 600, fontSize: '0.875rem' }}>{c.title}</div>
-                      <div style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)' }}>
-                        Version {c.versionNumber} • <StatusBadge value={c.status} type="charterStatus" />
-                      </div>
-                    </div>
-                    <Link to={`/charters/${c.id}`} className="btn btn-outline btn-sm" style={{ padding: '4px 8px' }}>
-                      Voir
+                <h3 className="card-title">Chartes d'intervention</h3>
+                {(isAdmin || isManager) && incident.status !== 'CLOTURE' && incident.status !== 'REJETE' && (
+                  <div className="incident-detail-actions">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      icon={Sparkles}
+                      loading={charterGenerating}
+                      disabled={charterGenerating}
+                      onClick={handleGenerateCharter}
+                    >
+                      Générer un brouillon
+                    </Button>
+                    <Link to={`/charters?incident=${id}`} className="btn btn-secondary btn-sm">
+                      Créer manuellement
                     </Link>
                   </div>
-                ))}
+                )}
               </div>
+              {charters.length > 0 ? (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                  {charters.map((c) => (
+                    <div key={c.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 0', borderBottom: '1px solid var(--color-border-light)' }}>
+                      <div>
+                        <div style={{ fontWeight: 600, fontSize: '0.875rem' }}>{c.title}</div>
+                        <div style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)' }}>
+                          Version {c.versionNumber} • <StatusBadge value={c.status} type="charterStatus" />
+                        </div>
+                      </div>
+                      <Link to={`/charters/${c.id}`} className="btn btn-outline btn-sm" style={{ padding: '4px 8px' }}>
+                        Voir
+                      </Link>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <EmptyState
+                  icon={FileText}
+                  title="Aucune charte associée"
+                  description="Générez un brouillon à partir de la dernière analyse IA ou créez une charte manuellement."
+                />
+              )}
             </div>
           )}
 
